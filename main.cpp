@@ -21,74 +21,95 @@ DigitalOut leds[4]={led1, led2, led3, led4};
 char* dirs[2] = {"Left", "Right"};
 int curr_dir = 0;
 
+int chen[4] = {0,0,0,1};
+int len = 1;
+int head = 3;
+int tail = 3;
+bool stopped = false;
+
 struct chenille{
     public:
     void showChenille(){
         for (int i = 0; i < 4; i++){
-            leds[i] = this->chen[(this->head+i)%4];
+            leds[i] = chen[i];
         }
     }
 
     void resetChenille(){
-        for (int i = 0; i < 4; i++) {this->chen[i] = 0;}
-        this->len = 0;
-        this->head = 3;
-        this->tail = 3;
+        for (int i = 0; i < 4; i++) {chen[i] = 0;}
+        len = 0;
+        head = 3;
+        tail = 3;
     }
 
     void Shift(int dir){
         int temp;
-        int d = dir ? dir : -1;
-        this->head = (head+dir)%4;
-        this->tail = (tail+dir)%4;
+        int d = dir == 0 ? -1 : 1;
+        if (!dir){
+            temp = chen[0];
+            for (int i = 0; i < 3; i++){
+                chen[i] = chen[i+1];
+            }
+            chen[3] = temp;
+        }
+        else{
+            temp = chen[3];
+            for (int i = 3; i >= 0; i--){
+                chen[i+1] = chen[i];
+            }
+            chen[0] = temp;
+        }
+        head = (head+d)%4;
+        tail = (tail+d)%4;
 
-        if (head < 0) {head = head * -1;}
-        if (tail < 0) {tail = tail * -1;}
+        // safe guard
+        if (head < 0) {head = 4 + head;}
+        if (tail < 0) {tail = 4 + tail;}
+        
     }
 
     void Add(int dir){
-        if (this->len == 4){
+        if (len == 3){
             return;
         }
         if (dir){
-            tail = (tail-1)%4;
+            if (tail==0){
+                tail=4;
+            }
+            tail = tail-1;
         }
         else{
             tail = (tail+1)%4;
         }
-        this->chen[tail] = 1;
+        chen[tail] = 1;
         len++;
     }
 
     void Remove(int dir){
-        if (this->len == 0){
+        if (len == 1){
             return;
         }
-        this->chen[tail] = 0;
+        chen[tail] = 0;
         if (dir){
             tail = (tail+1)%4;
         }
         else{
-            tail = (tail-1)%4;
+            if (tail==0){
+                tail=4;
+            }
+            tail = tail-1;
         }
         len--;
 
     }
 
     void setPause(bool p){
-        this->stopped = p;
+        stopped = p;
     }
 
     bool getPause(){
-        return this->stopped;
+        return stopped;
     }
-
-    private:
-    int chen[4] = {0,0,0,1};
-    int len = 1;
-    int head = 3;
-    int tail = 3;
-    bool stopped = false;
 
 };
 
@@ -111,20 +132,25 @@ void DisplayIntLeds(int j){
 */
 
 void showInfoInputs(){
-    lcd.locate(0,lcd.height()-4);
-    lcd.printf("%i", U.read());
+    lcd.locate(0,12);
+    lcd.printf("U: %i", U.read());
 
-    lcd.locate(lcd.width()/5, lcd.height()-4);
-    lcd.printf("%i", D.read());
+    lcd.locate(lcd.width()/5, 12);
+    lcd.printf("D: %i", D.read());
 
-    lcd.locate(lcd.width()/5*2, lcd.height()-4);
-    lcd.printf("%i", L.read());
+    lcd.locate(lcd.width()/5*2, 12);
+    lcd.printf("L: %i", L.read());
 
-    lcd.locate(lcd.width()/5*3, lcd.height()-4);
-    lcd.printf("%i", R.read());
+    lcd.locate(lcd.width()/5*3, 12);
+    lcd.printf("R: %i", R.read());
 
-    lcd.locate(lcd.width()/5*4, lcd.height()-4);
-    lcd.printf("%i", X.read());
+    lcd.locate(lcd.width()/5*4, 12);
+    lcd.printf("X: %i", X.read());
+    
+    //debug
+    //lcd.locate(0, 20);
+    //lcd.printf("tail: %i, head: %i, len: %i", tail, head, len);
+    //lcd.printf("%i %i %i %i", chen[0], chen[1], chen[2], chen[3]);
 
     lcd.locate(0,0);
     lcd.printf("current direction: %s", dirs[curr_dir]);
@@ -132,7 +158,7 @@ void showInfoInputs(){
 
 void handlePause(chenille& c){
     t.start();
-    while(X.read() || t.read()<3){
+    while(X.read()){
     }
     t.stop();
 
@@ -141,7 +167,8 @@ void handlePause(chenille& c){
         c.resetChenille();
     }
     else{
-        c.setPause(true);
+        if (c.getPause()){c.setPause(false);}
+        else{c.setPause(true);};
     }
 
     t.reset();
@@ -150,7 +177,7 @@ void handlePause(chenille& c){
 void handleInput(chenille& c){
     int l = L.read(), r = R.read(), u = U.read(), d = D.read(), x = X.read();
     if (x) {handlePause(c);}
-    else if (l) {curr_dir = 0;}
+    if (l) {curr_dir = 0;}
     else if (r) {curr_dir = 1;}
     else if (u) {c.Add(curr_dir);}
     else if (d) {c.Remove(curr_dir);}
@@ -165,7 +192,8 @@ int main() {
       handleInput(c);
       if (!c.getPause()) {c.Shift(curr_dir);}
       showInfoInputs();
-      wait_ms(10);
+      c.showChenille();
+      wait_ms(1000);
 
   }
 }
